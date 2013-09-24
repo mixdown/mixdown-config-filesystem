@@ -1,0 +1,19 @@
+{
+  "name": "mixdown-config-filesystem",
+  "version": "0.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha -R spec -u tdd test/unit.js"
+  },
+  "dependencies": {
+    "lodash": "~2.1.0",
+    "async": "~0.2.9"
+  },
+  "devDependencies": {
+    "mocha": "~1.12.0",
+    "tape": "~1.1.0",
+    "tap": "~0.4.4",
+    "broadway": "~0.2.7"
+  },
+  "description": "Mixdown configuration provider for local filesystem"
+}

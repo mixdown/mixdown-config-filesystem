@@ -1,0 +1,8 @@
+{
+  "vhosts": [
+    "web2.local.com"
+  ],
+  "plugins": {
+  
+  }
+}
