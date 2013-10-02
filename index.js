@@ -44,23 +44,24 @@ FileSystemConfig.prototype.getServices = function(callback) {
     // Load all the services from the folder.
     fs.readdir(servicesPath, function(err, files) {
 
-      var ops = _.map(files, function(configFile) {
-
-        return function(cb) {
-
-          var serviceConfig = null;
-          try {
-            serviceConfig = require(path.join(servicesPath, configFile));
-            serviceConfig.id = configFile.replace(/(\.js|\.json)$/, '');
-          } catch (e) {
-            cb(e);
-            return;
-          }
-
-          cb(null, serviceConfig);
-        };
-
-      });
+      var ops = _.chain(files)
+          .filter(function(configFile){ return configFile[0] !== '.'})
+          .map(function(configFile){
+            return function(cb) {
+    
+              var serviceConfig = null;
+              try {
+                serviceConfig = require(path.join(servicesPath, configFile));
+                serviceConfig.id = configFile.replace(/(\.js|\.json)$/, '');
+              } catch (e) {
+                cb(e);
+                return;
+              }
+    
+              cb(null, serviceConfig);
+            };
+          })
+          .value();
 
       async.parallel(ops, callback);
     });
