@@ -5,8 +5,12 @@
   "scripts": {
     "test": "mocha -R spec -u tdd test/unit.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mixdown/mixdown-config-filesystem.git"
+  },
   "dependencies": {
-    "lodash": "~2.1.0",
+    "lodash": "~2.2.0",
     "async": "~0.2.9"
   },
   "devDependencies": {
