@@ -11,15 +11,6 @@ module.exports = BasePlugin.extend({
 
     // this holds a pointer to the most recently loaded config.
     this._config = null;
-
-    _.defaults(this._options, {
-      paths: ['./config']
-    });
-
-    // ensure array
-    if (!_.isArray(this._options.paths)) {
-      this._options.paths = [this._options.paths];
-    }
   },
   get: function(callback) {
     if (this._config) {
@@ -29,6 +20,13 @@ module.exports = BasePlugin.extend({
     }
   },
   crawl: function(callback) {
+
+    // for not external config.
+    if (!this._options.paths || this._options.paths.length === 0) {
+      this._config = [];
+      callback(null, this._config);
+      return;
+    }
 
     var self = this;
     var full_paths = _.isArray(this._options.paths) ? this._options.paths : [this._options.paths];
