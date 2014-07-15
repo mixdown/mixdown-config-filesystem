@@ -1,83 +1,137 @@
 var _ = require('lodash');
-var util = require('util');
-var EventEmitter = require('events').EventEmitter;
 var fs = require('fs');
 var path = require('path');
 var async = require('async');
+var BasePlugin = require('mixdown-app').Plugin;
 
-var FileSystemConfig = function(options) {
-  this.options = _.defaults(options || {}, {
-    paths: ['/mixdown-services']
-  });
+module.exports = BasePlugin.extend({
+  _namespace_default: 'config',
+  init: function(options) {
+    this._super(options);
 
-  // TODO: update getServices to support multiple folder paths.  
-  if (this.options.paths.length > 1) {
-    throw new Error('Mixdown will support multiple paths, but this is not yet supported.');
-  }
-};
+    // this holds a pointer to the most recently loaded config.
+    this._config = null;
 
-util.inherits(FileSystemConfig, EventEmitter);
-
-/**
-* Initializes config, sets up listener for site changes.  If init succeeds, then 'site' on a single change, 'sites' when all are updated, and 'error' events are emitted.
-* @param callback - function(err, sites) where sites is an array of all sites.
-**/
-FileSystemConfig.prototype.init = function(done) {
-  done();
-};
-
-FileSystemConfig.prototype.getServices = function(callback) {
-  var definedPath = this.options.paths && this.options.paths.length ? this.options.paths[0] : null;
-  var servicesPath = path.join(process.cwd(), definedPath || 'mixdown-services');
-
-  // check for path
-  fs.exists(servicesPath, function(exists) {
-
-    if (!exists) {
-
-      // if the user specifically defined the path, then throw error.  Otherwise, this is an optimistic search for the default path so it is not an error.
-      var err = definedPath ? new Error('Services path does not exist.  path: ' + servicesPath) : null;
-      callback(err);
-      return;
-    }
-
-    // Load all the services from the folder.
-    fs.readdir(servicesPath, function(err, files) {
-
-      var ops = _.chain(files)
-          .filter(function(configFile){ return configFile[0] !== '.'})
-          .map(function(configFile){
-            return function(cb) {
-    
-              var serviceConfig = null;
-              try {
-                serviceConfig = require(path.join(servicesPath, configFile));
-                serviceConfig.id = configFile.replace(/(\.js|\.json)$/, '');
-              } catch (e) {
-                cb(e);
-                return;
-              }
-    
-              cb(null, serviceConfig);
-            };
-          })
-          .value();
-
-      async.parallel(ops, callback);
+    _.defaults(this._options, {
+      paths: ['./config']
     });
 
-  });
-};
+    // ensure array
+    if (!_.isArray(this._options.paths)) {
+      this._options.paths = [this._options.paths];
+    }
+  },
+  get: function(callback) {
+    if (this._config) {
+      callback(null, this._config);
+    } else {
+      throw new Error('External Config not initialized. Call setup().');
+    }
+  },
+  crawl: function(callback) {
 
-var FileSystemConfigPlugin = function(namespace) {
-  namespace = namespace || 'externalConfig';
+    var self = this;
+    var full_paths = _.isArray(this._options.paths) ? this._options.paths : [this._options.paths];
+    full_paths = _.map(full_paths, function(p) {
+      return path.join(process.cwd(), p);
+    });
 
-  this.attach = function(options) {
-    this.externalConfig = new FileSystemConfig(options);
-  };
-  this.init = function(done) {
-    this.externalConfig.init(done);
-  };
-};
+    // get stats for all folders.
+    var directory_stats = _.map(full_paths, function(file) {
+      return function(cb) {
 
-module.exports = FileSystemConfigPlugin;
+        var full_path = file;
+
+        fs.exists(full_path, function(exists) {
+
+          if (!exists) {
+            cb(new Error('Directory does not exist.' + full_path));
+            return;
+          }
+
+          fs.stat(full_path, function(err, stats) {
+
+            cb(null, _.extend(stats, {
+              full_path: file
+            }));
+          });
+        });
+      };
+    });
+
+    // filter the valid folders for controllers.
+    async.parallel(directory_stats, function(err, results) {
+
+      if (err) {
+        callback(err);
+        return;
+      }
+
+      // ensure we are only loading from directories.
+      var dirs = _.filter(results, function(file_stats) {
+        return file_stats.isDirectory();
+      });
+
+      // load all configs from each path
+      var directory_ops = _.map(dirs, function(dir) {
+
+        return function(cb) {
+          // Load all the services from the folder.
+          fs.readdir(dir.full_path, function(err, files) {
+            cb(err, _.map(files, function(f) {
+              return path.join(dir.full_path, f);
+            }));
+          });
+        };
+      });
+
+
+      // run all load file_ops now.
+      async.parallel(directory_ops, function(err, results) {
+        var file_ops = [];
+
+        if (err) {
+          callback(err);
+          return;
+        }
+
+        _.each(results, function(files) {
+
+          // concat the list of loads for files in this directory.
+          file_ops = file_ops.concat(_.filter(files, function(configFile) {
+              return /\.(js|json)$/.test(configFile);
+            })
+            .map(function(configFile) {
+              return function(cb) {
+
+                var serviceConfig = null;
+                try {
+                  serviceConfig = require(configFile);
+                  serviceConfig.id = path.basename(configFile.replace(/(\.js|\.json)$/, ''));
+                } catch (e) {
+                  cb(e);
+                  return;
+                }
+
+                cb(null, serviceConfig);
+              };
+
+            })
+          );
+        });
+
+        async.parallel(file_ops, callback);
+      });
+
+    });
+  },
+  _setup: function(done) {
+
+    // crawl and load
+    var self = this;
+    this.crawl(function(err, services) {
+      self._config = services;
+      done(err);
+    });
+  }
+});

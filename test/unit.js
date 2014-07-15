@@ -1,51 +1,58 @@
 var _ = require('lodash');
 var assert = require('assert');
 var FilePlugin = require('../index.js');
-var broadway = require('broadway');
+var App = require('mixdown-app').App;
 
-suite('File System Config Plugin', function () {
+suite('File System Config Plugin', function() {
 
-  test('Get Services', function (done) {
+  test('Get Services', function(done) {
 
-    var app = new broadway.App();
+    var app = new App();
 
-    app.use(new FilePlugin(), {
+    app.use(new FilePlugin({
       paths: ['/test/mixdown-services']
-    });
+    }), 'config');
 
-    app.init(function(err) {
+    app.setup(function(err) {
+
+      if (err) {
+        console.error(err);
+      }
 
       assert.ifError(err);
-      assert.ok( _.isFunction(app.externalConfig.getServices), "Get Services function should exist.");
+      assert.ok(_.isFunction(app.config.get), "Get Services function should exist.");
 
-      app.externalConfig.getServices(function(errServices, services) {
-        
+      app.config.get(function(errServices, services) {
+
+        if (errServices) {
+          console.error(errServices);
+        }
         assert.ifError(errServices);
+        assert.equal(services[0].id, 'web1', 'Check for correct service name');
+        assert.equal(services[1].id, 'web2', 'Check for correct service name');
         // console.error(services);
         done();
       });
     });
   });
 
-  test('Test with bad path', function (done) {
+  test('Test with bad path', function(done) {
 
-    var app = new broadway.App();
+    var app = new App();
 
-    app.use(new FilePlugin(), {
+    app.use(new FilePlugin({
       paths: ['/path/to/nowhere']
-    });
+    }), 'config');
 
-    app.init(function(err) {
+    app.setup(function(err) {
 
-      assert.ifError(err);
-      assert.ok( _.isFunction(app.externalConfig.getServices), "Get Services function should exist.");
+      if (err) {
+        console.error(err);
+      }
 
-      app.externalConfig.getServices(function(errServices, services) {
-        
-        assert.ok(errServices);
-        // console.error(services);
-        done();
-      });
+      assert.ok(err, 'Should return error');
+      done();
+
     });
   });
 
