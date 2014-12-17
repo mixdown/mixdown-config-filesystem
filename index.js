@@ -105,7 +105,9 @@ module.exports = BasePlugin.extend({
                 var serviceConfig = null;
                 try {
                   serviceConfig = require(configFile);
-                  serviceConfig.id = path.basename(configFile.replace(/(\.js|\.json)$/, ''));
+                  if (!serviceConfig.id) {
+                    serviceConfig.id = path.basename(configFile.replace(/(\.js|\.json)$/, ''));
+                  }
                 } catch (e) {
                   cb(e);
                   return;
